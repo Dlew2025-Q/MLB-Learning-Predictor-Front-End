@@ -7,27 +7,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #111827;
-            color: #d1d5db;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #111827; color: #d1d5db; }
         .table-header { background-color: #1f2937; }
         .table-row-odd { background-color: #1f2937; }
         .table-row-even { background-color: #111827; }
-        .loader {
-            border: 4px solid #374151;
-            border-top: 4px solid #3b82f6;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 2rem auto;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        .loader { border: 4px solid #374151; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 2rem auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="p-4 sm:p-6 md:p-8">
@@ -49,9 +34,7 @@
                             <th scope="col" class="px-4 py-3 text-center">Edge</th>
                         </tr>
                     </thead>
-                    <tbody id="betting-table-body">
-                        <!-- Rows will be dynamically inserted here -->
-                    </tbody>
+                    <tbody id="betting-table-body"></tbody>
                 </table>
             </div>
              <div id="message-view" class="hidden text-center p-8 text-gray-400">
@@ -63,49 +46,32 @@
         
         <footer class="text-center mt-8">
             <p class="text-xs text-gray-500">Disclaimer: All data is for informational purposes only. Bet responsibly.</p>
-             <p class="text-xs text-gray-600 mt-1">Odds provided by The Odds API.</p>
+            <p class="text-xs text-gray-600 mt-1">Odds provided by The Odds API.</p>
         </footer>
     </div>
 
     <script>
-        // --- CONFIGURATION ---
         const ODDS_API_KEY = 'cc51a757d14174fd8061956b288df39e';
-        const PREDICTION_API_URL = 'https://mlb-prediction-api.onrender.com/predict'; // Your deployed API URL
+        const PREDICTION_API_URL = 'https://mlb-prediction-api.onrender.com'; // Your deployed API URL
         const ODDS_API_URL = 'https://api.the-odds-api.com/v4';
         
-        // This would be fetched from your database in a real app
-        const TEAM_NAME_MAP = { "ARI": "ARI", "ATL": "ATL", "BAL": "BAL", "BOS": "BOS", "CHC": "CHC", "CHW": "CHW", "CIN": "CIN", "CLE": "CLE", "COL": "COL", "DET": "DET", "HOU": "HOU", "KCR": "KC", "KC": "KC", "LAA": "LAA", "LAD": "LAD", "MIA": "MIA", "MIL": "MIL", "MIN": "MIN", "NYM": "NYM", "NYY": "NYY", "OAK": "OAK", "PHI": "PHI", "PIT": "PIT", "SDP": "SD", "SD": "SD", "SFG": "SF", "SF": "SF", "SEA": "SEA", "STL": "STL", "TBR": "TB", "TB": "TB", "TEX": "TEX", "TOR": "TOR", "WSN": "WSH", "WAS": "WSH", "Arizona Diamondbacks": "ARI", "Atlanta Braves": "ATL", "Baltimore Orioles": "BAL", "Boston Red Sox": "BOS", "Chicago Cubs": "CHC", "Chicago White Sox": "CHW", "Cincinnati Reds": "CIN", "Cleveland Guardians": "CLE", "Colorado Rockies": "COL", "Detroit Tigers": "DET", "Houston Astros": "HOU", "Kansas City Royals": "KC", "Los Angeles Angels": "LAA", "Los Angeles Dodgers": "LAD", "Miami Marlins": "MIA", "Milwaukee Brewers": "MIL", "Minnesota Twins": "MIN", "New York Mets": "NYM", "New York Yankees": "NYY", "Oakland Athletics": "OAK", "Philadelphia Phillies": "PHI", "Pittsburgh Pirates": "PIT", "San Diego Padres": "SD", "San Francisco Giants": "SF", "Seattle Mariners": "SEA", "St. Louis Cardinals": "STL", "Tampa Bay Rays": "TB", "Texas Rangers": "TEX", "Toronto Blue Jays": "TOR", "Washington Nationals": "WSH", "Diamondbacks": "ARI", "Braves": "ATL", "Orioles": "BAL", "Red Sox": "BOS", "Cubs": "CHC", "White Sox": "CHW", "Reds": "CIN", "Guardians": "CLE", "Indians": "CLE", "Rockies": "COL", "Angels": "LAA", "Dodgers": "LAD", "Marlins": "MIA", "Brewers": "MIL", "Twins": "MIN", "Mets": "NYM", "Yankees": "NYY", "Athletics": "OAK", "Phillies": "PHI", "Pirates": "PIT", "Padres": "SD", "Giants": "SF", "Mariners": "SEA", "Cardinals": "STL", "Rays": "TB", "Rangers": "TEX", "Blue Jays": "TOR", "Nationals": "WSH", "ARZ": "ARI", "CWS": "CHW", "METS": "NYM", "YANKEES": "NYY", "ATH": "OAK" };
-
-        // --- DOM ELEMENTS ---
         const tableBody = document.getElementById('betting-table-body');
         const messageView = document.getElementById('message-view');
         const loader = document.getElementById('loader');
         const messageText = document.getElementById('message-text');
         const messageSubtext = document.getElementById('message-subtext');
 
-        /**
-         * Main function to orchestrate the data fetching and prediction process.
-         */
         async function main() {
             setLoadingState(true, "Fetching today's games...");
             try {
-                // 1. Get today's games from The Odds API
                 const todayGames = await fetchTodayGames();
                 if (todayGames.length === 0) {
                     setMessageState("No MLB games scheduled for today.", "Please check back on a game day.");
                     return;
                 }
                 
-                // 2. Get historical data needed for feature engineering (this is a simplified placeholder)
-                // In a real app, this data would be pre-calculated and fetched from your own API.
-                // For this demo, we'll simulate it.
-                const historicalData = await fetchHistoricalData();
-
-                // 3. Get predictions for each game
                 setLoadingState(true, "Calculating features and getting predictions...");
-                const predictions = await getPredictionsForGames(todayGames, historicalData);
-
-                // 4. Render the final table
+                const predictions = await getPredictionsForGames(todayGames);
                 renderTable(predictions);
 
             } catch (error) {
@@ -116,129 +82,56 @@
             }
         }
 
-        /**
-         * Fetches upcoming MLB games for today.
-         */
         async function fetchTodayGames() {
-            const sport = 'baseball_mlb';
-            const regions = 'us';
-            const markets = 'totals';
-            const url = `${ODDS_API_URL}/sports/${sport}/odds?apiKey=${ODDS_API_KEY}&regions=${regions}&markets=${markets}`;
+            const url = `${ODDS_API_URL}/sports/baseball_mlb/odds?apiKey=${ODDS_API_KEY}&regions=us&markets=totals`;
             const response = await fetch(url);
             if (!response.ok) throw new Error("Failed to fetch games from The Odds API.");
             const games = await response.json();
-            
-            // Filter for games happening today
             const todayStr = new Date().toISOString().slice(0, 10);
             return games.filter(g => g.commence_time.startsWith(todayStr));
         }
         
-        /**
-         * Placeholder to simulate fetching historical data needed for feature calculation.
-         * In a real app, this would be a call to your own database/API.
-         */
-        async function fetchHistoricalData() {
-            // This is a simplified simulation. A real app would have a dedicated API endpoint
-            // to provide the necessary historical stats for calculating rolling averages.
-            return {
-                // Mock data to allow feature calculation to run
-                team_stats: [
-                    { team: 'ATL', rolling_avg_hits: 9.1, rolling_avg_homers: 1.5 },
-                    { team: 'NYM', rolling_avg_hits: 8.2, rolling_avg_homers: 1.1 }
-                ],
-                pitcher_stats: [
-                    { player_name: 'Max Fried', starter_rolling_era: 2.55, starter_rolling_ks: 8.1 },
-                    { player_name: 'Kodai Senga', starter_rolling_era: 3.10, starter_rolling_ks: 9.5 }
-                ],
-                bullpen_stats: [
-                    { team: 'ATL', bullpen_rolling_era: 3.2 },
-                    { team: 'NYM', bullpen_rolling_era: 4.1 }
-                ],
-                park_factors: [
-                    { team: 'ATL', park_factor_avg_runs: 9.5 },
-                    { team: 'NYM', park_factor_avg_runs: 8.8 }
-                ]
-            };
-        }
-
-        /**
-         * Takes today's games, engineers features, and gets a prediction for each.
-         */
-        async function getPredictionsForGames(games, historicalData) {
+        async function getPredictionsForGames(games) {
             const predictions = [];
             for (const game of games) {
-                const features = getFeaturesForGame(game, historicalData);
-                
                 try {
-                    const response = await fetch(PREDICTION_API_URL, {
+                    // Step 1: Get the features for this specific game from our API
+                    const featuresUrl = `${PREDICTION_API_URL}/features?home_team=${encodeURIComponent(game.home_team)}&away_team=${encodeURIComponent(game.away_team)}`;
+                    const featuresResponse = await fetch(featuresUrl);
+                    if (!featuresResponse.ok) {
+                        console.warn(`Could not get features for game ${game.id}`);
+                        continue;
+                    }
+                    const features = await featuresResponse.json();
+
+                    // Step 2: Send those features to the predict endpoint
+                    const predictResponse = await fetch(`${PREDICTION_API_URL}/predict`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(features)
                     });
-                    if (!response.ok) {
+                    if (!predictResponse.ok) {
                         console.warn(`Prediction failed for ${game.id}`);
                         continue;
                     }
-                    const result = await response.json();
+                    const result = await predictResponse.json();
                     
-                    // Find the best "totals" line from the bookmakers
                     const totalsMarket = game.bookmakers.flatMap(b => b.markets).find(m => m.key === 'totals');
                     const line = totalsMarket ? totalsMarket.outcomes[0].point : 'N/A';
 
-                    predictions.push({
-                        ...game,
-                        market_line: line,
-                        model_prediction: result.predicted_total_runs
-                    });
+                    predictions.push({ ...game, market_line: line, model_prediction: result.predicted_total_runs });
                 } catch (error) {
-                    console.error(`Error getting prediction for ${game.id}:`, error);
+                    console.error(`Error processing game ${game.id}:`, error);
                 }
             }
             return predictions;
         }
 
-        /**
-         * Simulates the feature engineering process from the Colab notebook.
-         */
-        function getFeaturesForGame(game, historicalData) {
-            const home_team = TEAM_NAME_MAP[game.home_team];
-            const away_team = TEAM_NAME_MAP[game.away_team];
-
-            // This is a simplified lookup. A real app would be more complex.
-            const homeTeamStats = historicalData.team_stats.find(t => t.team === home_team) || {};
-            const awayTeamStats = historicalData.team_stats.find(t => t.team === away_team) || {};
-            const homeBullpen = historicalData.bullpen_stats.find(t => t.team === home_team) || {};
-            const awayBullpen = historicalData.bullpen_stats.find(t => t.team === away_team) || {};
-            const parkFactor = historicalData.park_factors.find(t => t.team === home_team) || {};
-
-            // In a real app, you would identify the starters and look up their specific stats.
-            const homeStarter = historicalData.pitcher_stats[0] || {};
-            const awayStarter = historicalData.pitcher_stats[1] || {};
-
-            return {
-                'home_rolling_avg_hits': homeTeamStats.rolling_avg_hits || 8.0,
-                'home_rolling_avg_homers': homeTeamStats.rolling_avg_homers || 1.0,
-                'away_rolling_avg_hits': awayTeamStats.rolling_avg_hits || 8.0,
-                'away_rolling_avg_homers': awayTeamStats.rolling_avg_homers || 1.0,
-                'home_starter_rolling_era': homeStarter.starter_rolling_era || 4.0,
-                'home_starter_rolling_ks': homeStarter.starter_rolling_ks || 5.0,
-                'away_starter_rolling_era': awayStarter.starter_rolling_era || 4.0,
-                'away_starter_rolling_ks': awayStarter.starter_rolling_ks || 5.0,
-                'home_bullpen_rolling_era': homeBullpen.bullpen_rolling_era || 4.0,
-                'away_bullpen_rolling_era': awayBullpen.bullpen_rolling_era || 4.0,
-                'park_factor_avg_runs': parkFactor.park_factor_avg_runs || 9.0
-            };
-        }
-
-        /**
-         * Renders the final table with game data and predictions.
-         */
         function renderTable(data) {
             tableBody.innerHTML = '';
             data.forEach((item, index) => {
                 const row = document.createElement('tr');
                 row.className = index % 2 === 0 ? 'table-row-even' : 'table-row-odd';
-                
                 const edge = item.model_prediction - item.market_line;
                 const edgeColor = edge > 0 ? 'text-green-400' : 'text-red-400';
                 const betSuggestion = edge > 0.5 ? 'Over' : (edge < -0.5 ? 'Under' : 'Hold');
@@ -272,18 +165,9 @@
             }
         }
 
-        function setMessageState(mainText, subText) {
-            setLoadingState(false);
-            messageView.classList.remove('hidden');
-            messageText.textContent = mainText;
-            messageSubtext.textContent = subText;
-        }
+        function setMessageState(mainText, subText) { setLoadingState(false); messageView.classList.remove('hidden'); messageText.textContent = mainText; messageSubtext.textContent = subText; }
+        function setErrorState(message) { setMessageState("An Error Occurred", message); }
 
-        function setErrorState(message) {
-            setMessageState("An Error Occurred", message);
-        }
-
-        // --- INITIALIZATION ---
         main();
     </script>
 </body>
