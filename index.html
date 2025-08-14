@@ -129,6 +129,7 @@
 
         function renderTable(data) {
             tableBody.innerHTML = '';
+            data.sort((a, b) => Math.abs(b.model_prediction - b.market_line) - Math.abs(a.model_prediction - a.market_line));
             data.forEach((item, index) => {
                 const row = document.createElement('tr');
                 row.className = index % 2 === 0 ? 'table-row-even' : 'table-row-odd';
