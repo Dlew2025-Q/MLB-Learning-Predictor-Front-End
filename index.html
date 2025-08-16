@@ -18,9 +18,16 @@
 <body class="p-4 sm:p-6 md:p-8">
     <div class="max-w-7xl mx-auto">
         <header class="text-center mb-8">
-            <h1 class="text-3xl sm:text-4xl font-bold text-white">MLB Prediction Dashboard</h1>
-            <p class="text-md text-gray-400 mt-2">Live Games & Model Predictions</p>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <h1 class="text-3xl sm:text-4xl font-bold text-white">MLB Prediction Dashboard</h1>
+                <!-- NEW: Copy Button -->
+                <button id="copy-button" class="hidden bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200">
+                    Copy Predictions
+                </button>
+            </div>
+            <p class="text-md text-gray-400 mt-2">Upcoming Games & Model Predictions</p>
         </header>
+
         <div class="bg-[#1f2937] rounded-lg shadow-lg overflow-hidden border border-gray-700 min-h-[300px]">
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left">
@@ -48,7 +55,6 @@
     </div>
     <script>
         // --- CONFIGURATION ---
-        // The URL for your own backend API. The API key is no longer needed here.
         const PREDICTION_API_URL = 'https://mlb-prediction-api.onrender.com';
         
         // --- DOM ELEMENTS ---
@@ -57,21 +63,23 @@
         const loader = document.getElementById('loader');
         const messageText = document.getElementById('message-text');
         const messageSubtext = document.getElementById('message-subtext');
+        const copyButton = document.getElementById('copy-button');
+
+        // --- STATE ---
+        let renderedPredictions = []; // Store data for the copy button
 
         // --- CORE LOGIC ---
         async function main() {
-            setLoadingState(true, "Fetching today's games...");
+            setLoadingState(true, "Fetching today's upcoming games...");
             try {
-                // Step 1: Fetch today's games from our secure backend endpoint.
-                const todayGames = await fetchTodayGames();
-                if (todayGames.length === 0) {
-                    setMessageState("No MLB games scheduled for today.", "Please check back on a game day.");
+                const upcomingGames = await fetchUpcomingGames();
+                if (upcomingGames.length === 0) {
+                    setMessageState("No upcoming MLB games found for today.", "Please check back later or on a game day.");
                     return;
                 }
                 
-                setLoadingState(true, "Getting predictions for all games...");
-                // Step 2: Get predictions for all fetched games.
-                const predictions = await getPredictionsForGames(todayGames);
+                setLoadingState(true, "Getting predictions...");
+                const predictions = await getPredictionsForGames(upcomingGames);
                 if (predictions.length > 0) {
                     renderTable(predictions);
                 } else {
@@ -86,8 +94,7 @@
             }
         }
 
-        async function fetchTodayGames() {
-            // This now calls our own API, which securely handles the key.
+        async function fetchUpcomingGames() {
             const url = `${PREDICTION_API_URL}/games`;
             const response = await fetch(url);
             if (!response.ok) {
@@ -98,14 +105,11 @@
         }
         
         async function getPredictionsForGames(games) {
-            const enrichedGames = [];
-            // Use Promise.all to fetch all predictions in parallel for better performance.
             const predictionPromises = games.map(async (game) => {
                 try {
                     const response = await fetch(`${PREDICTION_API_URL}/predict`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        // Send the team names to the predict endpoint.
                         body: JSON.stringify({
                             home_team: game.home_team,
                             away_team: game.away_team,
@@ -115,38 +119,34 @@
                     if (!response.ok) {
                         const errorData = await response.json();
                         console.warn(`Prediction failed for ${game.home_team} vs ${game.away_team}: ${errorData.error}`);
-                        return null; // Return null for failed predictions
+                        return null;
                     }
                     
                     const result = await response.json();
-                    
-                    // Find the market line for totals (Over/Under).
-                    const totalsMarket = game.bookmakers
-                        .flatMap(b => b.markets)
-                        .find(m => m.key === 'totals');
+                    const totalsMarket = game.bookmakers.flatMap(b => b.markets).find(m => m.key === 'totals');
                     const line = totalsMarket ? totalsMarket.outcomes[0].point : 'N/A';
 
-                    // Return the game data enriched with the prediction and market line.
                     return { ...game, market_line: line, model_prediction: result.predicted_total_runs };
                 } catch (error) {
                     console.error(`Error processing game between ${game.home_team} and ${game.away_team}:`, error);
-                    return null; // Return null on network or other errors
+                    return null;
                 }
             });
 
-            // Wait for all promises to resolve.
             const results = await Promise.all(predictionPromises);
-            // Filter out any null results from failed predictions.
             return results.filter(r => r !== null);
         }
 
-        // --- UI RENDERING ---
+        // --- UI RENDERING & EVENTS ---
         function renderTable(data) {
             if (data.length === 0) return;
             tableBody.innerHTML = '';
-            // Sort games by the absolute difference between prediction and market line ("edge").
             data.sort((a, b) => Math.abs(b.model_prediction - b.market_line) - Math.abs(a.model_prediction - a.market_line));
             
+            // NEW: Store sorted data for the copy button
+            renderedPredictions = data; 
+            copyButton.classList.remove('hidden'); // Show the copy button
+
             data.forEach((item, index) => {
                 const row = document.createElement('tr');
                 row.className = index % 2 === 0 ? 'table-row-even' : 'table-row-odd';
@@ -170,10 +170,45 @@
                 tableBody.appendChild(row);
             });
         }
+        
+        // NEW: Function to copy predictions to clipboard
+        function copyPredictionsToClipboard() {
+            if (renderedPredictions.length === 0) return;
+
+            const today = new Date().toLocaleDateString();
+            let textToCopy = `MLB Predictions - ${today}\n\n`;
+
+            renderedPredictions.forEach(item => {
+                const edge = item.market_line !== 'N/A' ? item.model_prediction - item.market_line : 0;
+                const betSuggestion = edge > 0.5 ? 'Over' : (edge < -0.5 ? 'Under' : 'Hold');
+                textToCopy += `${item.home_team} vs ${item.away_team}\n`;
+                textToCopy += `  Market Line: ${item.market_line}\n`;
+                textToCopy += `  Model Prediction: ${item.model_prediction.toFixed(2)}\n`;
+                textToCopy += `  Edge: ${edge.toFixed(2)} (${betSuggestion})\n\n`;
+            });
+
+            // Create a temporary textarea to hold the text and copy it.
+            const textArea = document.createElement('textarea');
+            textArea.value = textToCopy;
+            textArea.style.position = 'fixed'; // Prevent scrolling to bottom of page
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                // Visual feedback for the user
+                copyButton.textContent = 'Copied!';
+                setTimeout(() => { copyButton.textContent = 'Copy Predictions'; }, 2000);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+            }
+            document.body.removeChild(textArea);
+        }
 
         function setLoadingState(isLoading, text = '') {
             if (isLoading) {
-                tableBody.innerHTML = ''; // Clear table while loading
+                tableBody.innerHTML = '';
+                copyButton.classList.add('hidden'); // Hide button while loading
                 messageView.classList.remove('hidden');
                 loader.classList.remove('hidden');
                 messageText.textContent = text;
@@ -196,6 +231,7 @@
         }
 
         // --- INITIALIZATION ---
+        copyButton.addEventListener('click', copyPredictionsToClipboard);
         main();
     </script>
 </body>
