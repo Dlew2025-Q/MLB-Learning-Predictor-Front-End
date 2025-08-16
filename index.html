@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unified O/U Prediction Framework</title>
+    <title>MLB Prediction Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -16,13 +16,11 @@
     </style>
 </head>
 <body class="p-4 sm:p-6 md:p-8">
-
     <div class="max-w-7xl mx-auto">
         <header class="text-center mb-8">
             <h1 class="text-3xl sm:text-4xl font-bold text-white">MLB Prediction Dashboard</h1>
             <p class="text-md text-gray-400 mt-2">Live Games & Model Predictions</p>
         </header>
-
         <div class="bg-[#1f2937] rounded-lg shadow-lg overflow-hidden border border-gray-700 min-h-[300px]">
             <div class="overflow-x-auto">
                 <table class="w-full text-sm text-left">
@@ -43,39 +41,45 @@
                 <p id="message-subtext" class="text-sm"></p>
             </div>
         </div>
-        
         <footer class="text-center mt-8">
             <p class="text-xs text-gray-500">Disclaimer: All data is for informational purposes only. Bet responsibly.</p>
             <p class="text-xs text-gray-600 mt-1">Odds provided by The Odds API.</p>
         </footer>
     </div>
-
     <script>
-        const ODDS_API_KEY = 'cc51a757d14174fd8061956b288df39e';
-        const PREDICTION_API_URL = 'https://mlb-prediction-api.onrender.com'; // Your deployed API URL
-        const ODDS_API_URL = 'https://api.the-odds-api.com/v4';
+        // --- CONFIGURATION ---
+        // The URL for your own backend API. The API key is no longer needed here.
+        const PREDICTION_API_URL = 'https://mlb-prediction-api.onrender.com';
         
+        // --- DOM ELEMENTS ---
         const tableBody = document.getElementById('betting-table-body');
         const messageView = document.getElementById('message-view');
         const loader = document.getElementById('loader');
         const messageText = document.getElementById('message-text');
         const messageSubtext = document.getElementById('message-subtext');
 
+        // --- CORE LOGIC ---
         async function main() {
             setLoadingState(true, "Fetching today's games...");
             try {
+                // Step 1: Fetch today's games from our secure backend endpoint.
                 const todayGames = await fetchTodayGames();
                 if (todayGames.length === 0) {
                     setMessageState("No MLB games scheduled for today.", "Please check back on a game day.");
                     return;
                 }
                 
-                setLoadingState(true, "Calculating features and getting predictions...");
+                setLoadingState(true, "Getting predictions for all games...");
+                // Step 2: Get predictions for all fetched games.
                 const predictions = await getPredictionsForGames(todayGames);
-                renderTable(predictions);
+                if (predictions.length > 0) {
+                    renderTable(predictions);
+                } else {
+                    setMessageState("Could not retrieve predictions.", "The model server might be offline or no valid data was found.");
+                }
 
             } catch (error) {
-                console.error("An error occurred in the main process:", error);
+                console.error("A critical error occurred:", error);
                 setErrorState(error.message);
             } finally {
                 setLoadingState(false);
@@ -83,70 +87,84 @@
         }
 
         async function fetchTodayGames() {
-            const url = `${ODDS_API_URL}/sports/baseball_mlb/odds?apiKey=${ODDS_API_KEY}&regions=us&markets=totals`;
+            // This now calls our own API, which securely handles the key.
+            const url = `${PREDICTION_API_URL}/games`;
             const response = await fetch(url);
-            if (!response.ok) throw new Error("Failed to fetch games from The Odds API.");
-            const games = await response.json();
-            const todayStr = new Date().toISOString().slice(0, 10);
-            return games.filter(g => g.commence_time.startsWith(todayStr));
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || "Failed to fetch games from the server.");
+            }
+            return await response.json();
         }
         
         async function getPredictionsForGames(games) {
-            const predictions = [];
-            for (const game of games) {
+            const enrichedGames = [];
+            // Use Promise.all to fetch all predictions in parallel for better performance.
+            const predictionPromises = games.map(async (game) => {
                 try {
-                    // Step 1: Get the features for this specific game from our API
-                    const featuresUrl = `${PREDICTION_API_URL}/features?home_team=${encodeURIComponent(game.home_team)}&away_team=${encodeURIComponent(game.away_team)}`;
-                    const featuresResponse = await fetch(featuresUrl);
-                    if (!featuresResponse.ok) {
-                        console.warn(`Could not get features for game ${game.id}`);
-                        continue;
-                    }
-                    const features = await featuresResponse.json();
-
-                    // Step 2: Send those features to the predict endpoint
-                    const predictResponse = await fetch(`${PREDICTION_API_URL}/predict`, {
+                    const response = await fetch(`${PREDICTION_API_URL}/predict`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(features)
+                        // Send the team names to the predict endpoint.
+                        body: JSON.stringify({
+                            home_team: game.home_team,
+                            away_team: game.away_team,
+                        })
                     });
-                    if (!predictResponse.ok) {
-                        console.warn(`Prediction failed for ${game.id}`);
-                        continue;
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        console.warn(`Prediction failed for ${game.home_team} vs ${game.away_team}: ${errorData.error}`);
+                        return null; // Return null for failed predictions
                     }
-                    const result = await predictResponse.json();
                     
-                    const totalsMarket = game.bookmakers.flatMap(b => b.markets).find(m => m.key === 'totals');
+                    const result = await response.json();
+                    
+                    // Find the market line for totals (Over/Under).
+                    const totalsMarket = game.bookmakers
+                        .flatMap(b => b.markets)
+                        .find(m => m.key === 'totals');
                     const line = totalsMarket ? totalsMarket.outcomes[0].point : 'N/A';
 
-                    predictions.push({ ...game, market_line: line, model_prediction: result.predicted_total_runs });
+                    // Return the game data enriched with the prediction and market line.
+                    return { ...game, market_line: line, model_prediction: result.predicted_total_runs };
                 } catch (error) {
-                    console.error(`Error processing game ${game.id}:`, error);
+                    console.error(`Error processing game between ${game.home_team} and ${game.away_team}:`, error);
+                    return null; // Return null on network or other errors
                 }
-            }
-            return predictions;
+            });
+
+            // Wait for all promises to resolve.
+            const results = await Promise.all(predictionPromises);
+            // Filter out any null results from failed predictions.
+            return results.filter(r => r !== null);
         }
 
+        // --- UI RENDERING ---
         function renderTable(data) {
+            if (data.length === 0) return;
             tableBody.innerHTML = '';
+            // Sort games by the absolute difference between prediction and market line ("edge").
             data.sort((a, b) => Math.abs(b.model_prediction - b.market_line) - Math.abs(a.model_prediction - a.market_line));
+            
             data.forEach((item, index) => {
                 const row = document.createElement('tr');
                 row.className = index % 2 === 0 ? 'table-row-even' : 'table-row-odd';
-                const edge = item.model_prediction - item.market_line;
+                
+                const edge = item.market_line !== 'N/A' ? item.model_prediction - item.market_line : 0;
                 const edgeColor = edge > 0 ? 'text-green-400' : 'text-red-400';
                 const betSuggestion = edge > 0.5 ? 'Over' : (edge < -0.5 ? 'Under' : 'Hold');
 
                 row.innerHTML = `
-                    <td class="px-4 py-3">
+                    <td class="px-4 py-4">
                         <div class="font-semibold text-white">${item.home_team} vs ${item.away_team}</div>
                         <div class="text-xs text-gray-400">${new Date(item.commence_time).toLocaleString()}</div>
                     </td>
-                    <td class="px-4 py-3 text-center font-mono text-lg">${item.market_line}</td>
-                    <td class="px-4 py-3 text-center font-mono text-lg font-bold text-blue-400">${item.model_prediction.toFixed(2)}</td>
-                    <td class="px-4 py-3 text-center">
-                        <div class="font-mono text-lg font-bold ${edgeColor}">${edge.toFixed(2)}</div>
-                        <div class="text-xs text-gray-400">${betSuggestion}</div>
+                    <td class="px-4 py-4 text-center font-mono text-lg">${item.market_line}</td>
+                    <td class="px-4 py-4 text-center font-mono text-lg font-bold text-blue-400">${item.model_prediction.toFixed(2)}</td>
+                    <td class="px-4 py-4 text-center">
+                        <div class="font-mono text-lg font-bold ${edgeColor}">${item.market_line !== 'N/A' ? edge.toFixed(2) : 'N/A'}</div>
+                        <div class="text-xs text-gray-400">${item.market_line !== 'N/A' ? betSuggestion : ''}</div>
                     </td>
                 `;
                 tableBody.appendChild(row);
@@ -155,7 +173,7 @@
 
         function setLoadingState(isLoading, text = '') {
             if (isLoading) {
-                tableBody.innerHTML = '';
+                tableBody.innerHTML = ''; // Clear table while loading
                 messageView.classList.remove('hidden');
                 loader.classList.remove('hidden');
                 messageText.textContent = text;
@@ -166,9 +184,18 @@
             }
         }
 
-        function setMessageState(mainText, subText) { setLoadingState(false); messageView.classList.remove('hidden'); messageText.textContent = mainText; messageSubtext.textContent = subText; }
-        function setErrorState(message) { setMessageState("An Error Occurred", message); }
+        function setMessageState(mainText, subText) {
+            setLoadingState(false);
+            messageView.classList.remove('hidden');
+            messageText.textContent = mainText;
+            messageSubtext.textContent = subText;
+        }
+        
+        function setErrorState(message) {
+            setMessageState("An Error Occurred", message);
+        }
 
+        // --- INITIALIZATION ---
         main();
     </script>
 </body>
