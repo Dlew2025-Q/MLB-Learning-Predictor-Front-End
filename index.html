@@ -22,7 +22,6 @@
     <div class="max-w-7xl mx-auto">
         <header class="text-center mb-8">
             <h1 class="text-3xl sm:text-4xl font-bold text-white">Prediction Dashboard</h1>
-            <!-- NEW: Sport Selector Tabs -->
             <div id="sport-tabs" class="flex justify-center gap-4 mt-4 text-gray-400">
                 <div class="tab active" data-sport="mlb">MLB</div>
                 <div class="tab" data-sport="nfl">NFL</div>
@@ -140,9 +139,48 @@
             return results.filter(r => r !== null);
         }
 
+        // --- FIX: Fully implemented the renderTable function ---
         function renderTable(data) {
             tableBody.innerHTML = '';
-            // (rest of your renderTable logic)
+            const gamesByDate = data.reduce((acc, game) => {
+                const gameDate = new Date(game.commence_time).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                if (!acc[gameDate]) acc[gameDate] = [];
+                acc[gameDate].push(game);
+                return acc;
+            }, {});
+            const sortedDates = Object.keys(gamesByDate).sort((a, b) => new Date(a) - new Date(b));
+            sortedDates.forEach(date => {
+                const dateRow = document.createElement('tr');
+                dateRow.className = 'date-header';
+                dateRow.innerHTML = `<th colspan="4" class="px-4 py-2 text-left text-white font-semibold">${date}</th>`;
+                tableBody.appendChild(dateRow);
+                const gamesForDate = gamesByDate[date];
+                gamesForDate.sort((a, b) => {
+                    const edgeA = a.market_line !== 'N/A' ? a.model_prediction - a.market_line : 0;
+                    const edgeB = b.market_line !== 'N/A' ? b.model_prediction - b.market_line : 0;
+                    return Math.abs(edgeB) - Math.abs(edgeA);
+                });
+                gamesForDate.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    row.className = index % 2 === 0 ? 'table-row-even' : 'table-row-odd';
+                    const edge = item.market_line !== 'N/A' ? item.model_prediction - item.market_line : 0;
+                    const edgeColor = edge > 0 ? 'text-green-400' : 'text-red-400';
+                    const betSuggestion = edge > 0.5 ? 'Over' : (edge < -0.5 ? 'Under' : 'Hold');
+                    row.innerHTML = `
+                        <td class="px-4 py-4">
+                            <div class="font-semibold text-white">${item.home_team} vs ${item.away_team}</div>
+                            <div class="text-xs text-gray-400">${new Date(item.commence_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        </td>
+                        <td class="px-4 py-4 text-center font-mono text-lg">${item.market_line}</td>
+                        <td class="px-4 py-4 text-center font-mono text-lg font-bold text-blue-400">${item.model_prediction.toFixed(2)}</td>
+                        <td class="px-4 py-4 text-center">
+                            <div class="font-mono text-lg font-bold ${edgeColor}">${item.market_line !== 'N/A' ? edge.toFixed(2) : 'N/A'}</div>
+                            <div class="text-xs text-gray-400">${item.market_line !== 'N/A' ? betSuggestion : ''}</div>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            });
         }
         
         function setLoadingState(isLoading, text = '') {
