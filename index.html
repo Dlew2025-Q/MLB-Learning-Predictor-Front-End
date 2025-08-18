@@ -46,6 +46,7 @@
              <div id="message-view" class="hidden text-center p-8 text-gray-400">
                 <div id="loader" class="loader hidden"></div>
                 <p id="message-text" class="font-semibold"></p>
+                <!-- FIX: Added the message-subtext element back -->
                 <p id="message-subtext" class="text-sm"></p>
             </div>
         </div>
@@ -55,12 +56,14 @@
     </div>
     <script>
         const PREDICTION_API_URL = 'https://mlb-prediction-api.onrender.com'; // Replace with your actual API URL
-        let currentSport = 'mlb'; // Default sport
+        let currentSport = 'mlb';
 
         const tableBody = document.getElementById('betting-table-body');
         const messageView = document.getElementById('message-view');
         const loader = document.getElementById('loader');
         const messageText = document.getElementById('message-text');
+        // --- FIX: Re-declared the messageSubtext constant ---
+        const messageSubtext = document.getElementById('message-subtext');
         const sportTabs = document.getElementById('sport-tabs');
 
         sportTabs.addEventListener('click', (e) => {
@@ -68,7 +71,7 @@
                 document.querySelector('.tab.active').classList.remove('active');
                 e.target.classList.add('active');
                 currentSport = e.target.dataset.sport;
-                main(); // Reload data for the new sport
+                main();
             }
         });
 
@@ -138,9 +141,8 @@
         }
 
         function renderTable(data) {
-            // (This function can remain largely the same, as it just displays the data)
             tableBody.innerHTML = '';
-            // ... (rest of your renderTable logic)
+            // (rest of your renderTable logic)
         }
         
         function setLoadingState(isLoading, text = '') {
@@ -149,6 +151,7 @@
                 messageView.classList.remove('hidden');
                 loader.classList.remove('hidden');
                 messageText.textContent = text;
+                messageSubtext.textContent = 'Please wait...';
             } else {
                 messageView.classList.add('hidden');
                 loader.classList.add('hidden');
