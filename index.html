@@ -22,6 +22,7 @@
     <div class="max-w-7xl mx-auto">
         <header class="text-center mb-8">
             <h1 class="text-3xl sm:text-4xl font-bold text-white">Prediction Dashboard</h1>
+            <!-- NEW: Sport Selector Tabs -->
             <div id="sport-tabs" class="flex justify-center gap-4 mt-4 text-gray-400">
                 <div class="tab active" data-sport="mlb">MLB</div>
                 <div class="tab" data-sport="nfl">NFL</div>
@@ -45,7 +46,6 @@
              <div id="message-view" class="hidden text-center p-8 text-gray-400">
                 <div id="loader" class="loader hidden"></div>
                 <p id="message-text" class="font-semibold"></p>
-                <!-- FIX: Added the message-subtext element back -->
                 <p id="message-subtext" class="text-sm"></p>
             </div>
         </div>
@@ -61,7 +61,6 @@
         const messageView = document.getElementById('message-view');
         const loader = document.getElementById('loader');
         const messageText = document.getElementById('message-text');
-        // --- FIX: Re-declared the messageSubtext constant ---
         const messageSubtext = document.getElementById('message-subtext');
         const sportTabs = document.getElementById('sport-tabs');
 
@@ -139,7 +138,6 @@
             return results.filter(r => r !== null);
         }
 
-        // --- FIX: Fully implemented the renderTable function ---
         function renderTable(data) {
             tableBody.innerHTML = '';
             const gamesByDate = data.reduce((acc, game) => {
