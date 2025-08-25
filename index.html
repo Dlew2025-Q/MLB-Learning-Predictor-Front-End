@@ -45,7 +45,7 @@
                             <th scope="col" class="px-4 py-3">Game</th>
                             <th scope="col" class="px-4 py-3 text-center">Market Line (O/U)</th>
                             <th scope="col" class="px-4 py-3 text-center">Model Prediction</th>
-                            <th scope="col" class="px-4 py-3 text-center">Confidence</th>
+                            <th scope="col" class="px-4 py-3 text-center">Edge</th>
                         </tr>
                     </thead>
                     <tbody id="betting-table-body">
@@ -142,13 +142,7 @@
                     const totalsMarket = game.bookmakers.flatMap(b => b.markets).find(m => m.key === 'totals');
                     const line = totalsMarket ? totalsMarket.outcomes[0].point : 'N/A';
 
-                    // Use the new confidence score from the backend response
-                    return { 
-                        ...game, 
-                        market_line: line, 
-                        model_prediction: result.predicted_total_runs,
-                        confidence: result.confidence // New confidence score
-                    };
+                    return { ...game, market_line: line, model_prediction: result.predicted_total_runs };
                 } catch (error) {
                     console.error(`Error processing game:`, error);
                     return null;
@@ -177,20 +171,17 @@
                 
                 const gamesForDate = gamesByDate[date];
                 gamesForDate.sort((a, b) => {
-                    // Sort by confidence score
-                    const confidenceA = a.confidence || 0;
-                    const confidenceB = b.confidence || 0;
-                    return confidenceB - confidenceA;
+                    const edgeA = a.market_line !== 'N/A' ? a.model_prediction - a.market_line : 0;
+                    const edgeB = b.market_line !== 'N/A' ? b.model_prediction - b.market_line : 0;
+                    return Math.abs(edgeB) - Math.abs(edgeA);
                 });
                 
                 gamesForDate.forEach((item, index) => {
                     const row = document.createElement('tr');
                     row.className = index % 2 === 0 ? 'table-row-even' : 'table-row-odd';
-                    
-                    const betConfidence = item.confidence ? (item.confidence * 100).toFixed(0) + '%' : 'N/A';
-                    const betDirection = item.confidence ? (item.confidence > 0.5 ? 'Over' : 'Under') : 'Hold';
-                    const confidenceColor = item.confidence ? (item.confidence > 0.5 ? 'text-green-400' : 'text-red-400') : 'text-gray-400';
-
+                    const edge = item.market_line !== 'N/A' ? item.model_prediction - item.market_line : 0;
+                    const edgeColor = edge > 0 ? 'text-green-400' : 'text-red-400';
+                    const betSuggestion = edge > 0.5 ? 'Over' : (edge < -0.5 ? 'Under' : 'Hold');
                     row.innerHTML = `
                         <td class="px-4 py-4">
                             <div class="font-semibold text-white">${item.home_team} vs ${item.away_team}</div>
@@ -199,8 +190,8 @@
                         <td class="px-4 py-4 text-center font-mono text-lg">${item.market_line}</td>
                         <td class="px-4 py-4 text-center font-mono text-lg font-bold text-blue-400">${item.model_prediction.toFixed(2)}</td>
                         <td class="px-4 py-4 text-center">
-                            <div class="font-mono text-lg font-bold ${confidenceColor}">${betConfidence}</div>
-                            <div class="text-xs text-gray-400">${betDirection}</div>
+                            <div class="font-mono text-lg font-bold ${edgeColor}">${item.market_line !== 'N/A' ? edge.toFixed(2) : 'N/A'}</div>
+                            <div class="text-xs text-gray-400">${item.market_line !== 'N/A' ? betSuggestion : ''}</div>
                         </td>
                     `;
                     tableBody.appendChild(row);
